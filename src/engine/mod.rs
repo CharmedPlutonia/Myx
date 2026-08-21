@@ -435,11 +435,14 @@ async fn connect(
     let session = Session::new(SessionConfig::default(), Some(cache));
 
     let backend = audio_backend::find(None).expect("an audio backend should be available");
+    let cfg = crate::config::get();
     let player_config = PlayerConfig {
         // Each correction pushes the whole Connect state to Spotify, so the old
         // 100ms announced us ten times a second. Position is extrapolated
         // locally; this only trims the drift.
         position_update_interval: Some(Duration::from_secs(1)),
+        bitrate: cfg.bitrate(),
+        normalisation: cfg.normalize_volume,
         ..Default::default()
     };
 
