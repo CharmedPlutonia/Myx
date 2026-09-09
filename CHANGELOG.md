@@ -6,6 +6,14 @@ they are added to, never rewritten.
 
 ## [Unreleased]
 
+### Added
+
+- `bitrate` and `normalize_volume` in `config.toml`. Streaming quality (96, 160
+  or 320 kbps) and loudness normalization were pinned to librespot's defaults
+  with no key, flag or environment variable to reach them. Both keep the old
+  values as their defaults, so an existing install is unchanged until you opt
+  in.
+
 ### Fixed
 
 - macOS: AirPods, headphone and Control Center controls now work without the

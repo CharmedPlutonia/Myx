@@ -116,6 +116,14 @@ client_id = "your-client-id"
 # album art comes out as a coarse mosaic, which means the terminal never
 # answered the detection query. MYX_PROTOCOL overrides this.
 protocol = "kitty"
+
+# Streaming quality in kbps: 96, 160 or 320. Any other whole number falls
+# back to 160.
+bitrate = 160
+
+# Even out loudness across tracks, the equivalent of the official client's
+# "Normalize volume". Leave it off to keep each track's own dynamics.
+normalize_volume = false
 ```
 
 ## Credits
