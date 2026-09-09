@@ -6,8 +6,19 @@ they are added to, never rewritten.
 
 ## [Unreleased]
 
+
+## [0.5.0] — 2026-09-09
+
 ### Added
 
+- **Ten-band graphic equalizer** (open with `e`). Cookbook peaking filters
+  across ten bands from 31 Hz to 16 kHz, ±12 dB each, with seven presets
+  (Bass Boost, Rock, Jazz, Vocal, Electronic, Treble Boost, and Flat). An
+  automatic preamp tracks the curve's peak response so boosted bands never
+  clip, and the curve persists across restarts. The filters run in the audio
+  sink ahead of the visualizer — the spectrum on screen is the spectrum you
+  hear — and settings are read between packets, so adjusting a band never
+  interrupts playback.
 - `bitrate` and `normalize_volume` in `config.toml`. Streaming quality (96, 160
   or 320 kbps) and loudness normalization were pinned to librespot's defaults
   with no key, flag or environment variable to reach them. Both keep the old
@@ -16,6 +27,9 @@ they are added to, never rewritten.
 
 ### Fixed
 
+- Closing a popup that covered the album art no longer blanks the cover for one
+  visible frame before redrawing it. The cached image is now replayed directly
+  in the same synchronized update, so the art reappears without a flicker.
 - macOS: AirPods, headphone and Control Center controls now work without the
   terminal focused. The handlers were registered but nothing ran the
   main-thread event loop that delivers them.
