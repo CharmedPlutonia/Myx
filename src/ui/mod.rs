@@ -4,6 +4,7 @@
 //! nothing here mutates application state. One module per screen, so the file
 //! to open is the one named after the thing on screen.
 
+mod equalizer;
 mod footer;
 mod library;
 mod lyrics;
@@ -12,6 +13,7 @@ mod overlay;
 mod queue;
 mod visualizer;
 
+pub(crate) use equalizer::*;
 pub(crate) use footer::*;
 pub(crate) use library::*;
 pub(crate) use lyrics::*;
@@ -112,6 +114,10 @@ pub(crate) fn render(f: &mut Frame, app: &App, out: &mut FrameOut, repaint: ArtR
 
     if app.view.actions.is_some() {
         render_actions_overlay(f, app, theme, area);
+    } else if app.view.equalizer.is_some() {
+        // Keep album art visible: the editor lives in the active pane and
+        // positions itself in free space around the cover.
+        render_equalizer_overlay(f, app, out, theme, right);
     }
 }
 
