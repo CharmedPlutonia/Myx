@@ -25,7 +25,9 @@ impl Rgb {
 
     /// This swatch renders as an ANSI indexed color, so it follows the terminal theme.
     pub const fn ansi(index: u8) -> Self {
-        Self { r: 0, g: 0, b: 0, source: index.saturating_add(1).clamp(1, 16) }
+        let shifted = index.saturating_add(1);
+        let source = if shifted > 16 { 16 } else { shifted };
+        Self { r: 0, g: 0, b: 0, source }
     }
 
     /// This swatch renders as the terminal's default foreground or background.
