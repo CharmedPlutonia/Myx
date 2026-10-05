@@ -13,11 +13,24 @@ pub struct Rgb {
     pub r: u8,
     pub g: u8,
     pub b: u8,
+    /// 0 = truecolor `r,g,b`. 1..=16 = ANSI indexed color `source - 1`.
+    /// 17 = the terminal's default (`Color::Reset`).
+    pub source: u8,
 }
 
 impl Rgb {
     pub const fn new(r: u8, g: u8, b: u8) -> Self {
-        Self { r, g, b }
+        Self { r, g, b, source: 0 }
+    }
+
+    /// This swatch renders as an ANSI indexed color, so it follows the terminal theme.
+    pub const fn ansi(index: u8) -> Self {
+        Self { r: 0, g: 0, b: 0, source: index.saturating_add(1).clamp(1, 16) }
+    }
+
+    /// This swatch renders as the terminal's default foreground or background.
+    pub const fn terminal() -> Self {
+        Self { r: 0, g: 0, b: 0, source: 17 }
     }
 
     /// Parse a `#rrggbb` (or `rrggbb`) hex string. Falls back to black on garbage
@@ -32,9 +45,13 @@ impl Rgb {
         }
     }
 
-    /// Convert to a ratatui truecolor value.
+    /// Convert to a ratatui color. Terminal-sourced swatches ignore `r,g,b`.
     pub const fn to_color(self) -> Color {
-        Color::Rgb(self.r, self.g, self.b)
+        match self.source {
+            0 => Color::Rgb(self.r, self.g, self.b),
+            17 => Color::Reset,
+            n => Color::Indexed(n - 1),
+        }
     }
 }
 
@@ -54,6 +71,11 @@ fn lerp_u8(a: u8, b: u8, t: f32) -> u8 {
 
 /// Interpolate between two colors. `t` is clamped to `[0, 1]`.
 pub fn lerp_color(a: Rgb, b: Rgb, t: f32) -> Rgb {
+    // Terminal colors are not a gradient. Keep the first swatch so a progress
+    // bar or wordmark stays on the terminal palette instead of inventing RGB.
+    if a.source != 0 || b.source != 0 {
+        return if t < 0.5 { a } else { b };
+    }
     let t = t.clamp(0.0, 1.0);
     Rgb::new(
         lerp_u8(a.r, b.r, t),

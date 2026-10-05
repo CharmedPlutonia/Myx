@@ -28,8 +28,8 @@ pub struct Config {
     /// Even out loudness across tracks, the equivalent of the official client's
     /// "Normalize volume". Off leaves each track's own dynamics alone.
     pub normalize_volume: bool,
-    /// Recolor the whole UI from the current cover. Off keeps the startup
-    /// palette (Tokyo Night) for the session.
+    /// Recolor the whole UI from the current cover. Off keeps the terminal
+    /// palette for the session.
     pub reactive_theming: bool,
 }
 
@@ -81,7 +81,7 @@ const TEMPLATE: &str = "\
 # volume\". Leave it off to keep each track's own dynamics.
 #normalize_volume = false
 
-# Recolor the UI from the current album cover. Off keeps Tokyo Night.
+# Recolor the UI from the current album cover. Off keeps the terminal palette.
 #reactive_theming = false
 ";
 

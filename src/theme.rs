@@ -187,6 +187,28 @@ pub const ROSEPINE: Theme = Theme {
     border_dimmest: c(0x25, 0x23, 0x38),
 };
 
+/// Follows the terminal's own palette. Backgrounds are unset so the terminal
+/// background shows through; roles map onto the 16 ANSI colors.
+pub const TERMINAL: Theme = Theme {
+    name: "terminal",
+    primary: Rgb::ansi(6),
+    secondary: Rgb::ansi(5),
+    accent: Rgb::ansi(4),
+    error: Rgb::ansi(1),
+    warning: Rgb::ansi(3),
+    success: Rgb::ansi(2),
+    info: Rgb::ansi(4),
+    text: Rgb::terminal(),
+    text_muted: Rgb::ansi(8),
+    background: Rgb::terminal(),
+    background_panel: Rgb::terminal(),
+    background_element: Rgb::ansi(8),
+    border: Rgb::ansi(8),
+    border_active: Rgb::ansi(6),
+    border_subtle: Rgb::ansi(8),
+    border_dimmest: Rgb::ansi(8),
+};
+
 pub const GRUVBOX: Theme = Theme {
     name: "gruvbox",
     primary: c(0x83, 0xa5, 0x98),
