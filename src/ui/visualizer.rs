@@ -25,7 +25,6 @@ pub(crate) fn render_visualizer(f: &mut Frame, app: &App, theme: Theme, area: Re
         return;
     };
     let values: [f32; NUM_BANDS] = guard.values;
-    let peak = guard.peak_envelope.max(1e-6);
     drop(guard);
 
     // Original footprint: a centered band, not the full pane.
@@ -61,8 +60,8 @@ pub(crate) fn render_visualizer(f: &mut Frame, app: &App, theme: Theme, area: Re
         } else {
             from_center as f32 / (side - 1) as f32 * (NUM_BANDS - 1) as f32
         };
-        // Pre-cava sensitivity: normalize to the peak, then sqrt.
-        cols[i] = (sample_band(&values, t) / peak).sqrt().clamp(0.0, 1.0);
+        // Already linear 0–1 at cava sensitivity 100.
+        cols[i] = sample_band(&values, t);
     }
     for _ in 0..3 {
         let src = cols.clone();

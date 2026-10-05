@@ -29,7 +29,9 @@ const LOWER_HZ: f32 = 50.0;
 const UPPER_HZ: f32 = 10_000.0;
 /// Higher than cava's 0.77 so the bars glide instead of stepping.
 const NOISE_REDUCTION: f32 = 0.93;
-/// Original peak-envelope decay, per hop. Quiet passages stay quiet.
+/// Cava default `sensitivity = 100` is a gain of 1.0. Autosens (default on)
+/// trims it when a bar would pass full height and creeps it back up otherwise.
+const SENSITIVITY: f32 = 1.0;
 const DECAY_FACTOR_PEAK: f32 = 0.9985;
 
 /// Shared frequency-band state written by the audio sink, read by the renderer.
@@ -37,6 +39,8 @@ pub struct VisBands {
     pub values: [f32; NUM_BANDS],
     pub updated_at: Instant,
     pub peak_envelope: f32,
+    /// Cava `sens`. 1.0 is `sensitivity = 100`.
+    pub sensitivity: f32,
     pub is_active: bool,
 }
 
@@ -46,6 +50,7 @@ impl VisBands {
             values: [0.0; NUM_BANDS],
             updated_at: Instant::now(),
             peak_envelope: 1e-6,
+            sensitivity: SENSITIVITY,
             is_active: false,
         }
     }
@@ -109,6 +114,7 @@ impl Sink for VisualizationSink {
         if let Ok(mut g) = self.bands.lock() {
             g.values.fill(0.0);
             g.peak_envelope = 1e-6;
+            g.sensitivity = SENSITIVITY;
             g.updated_at = Instant::now();
             g.is_active = false;
         }
@@ -171,18 +177,28 @@ impl Sink for VisualizationSink {
                     let frame_peak = self.new_bands.iter().copied().fold(0.0_f32, f32::max);
                     // Slow release so a quiet bar can grow, without a loud hit
                     // pinning the scale so hard the rest disappears.
-                    // Same envelope as the pre-cava visualizer: raw magnitudes,
-                    // peak held with a slow decay. The sqrt scale is applied at draw.
+                    // cava cavacore.c: sens starts at 1.0 (`sensitivity = 100`).
+                    // Overshoot cuts 2% per 60 Hz frame; otherwise it rises 0.1%.
+                    let frames = (dt * 60.0).clamp(0.05, 3.0);
                     let peak_decay = DECAY_FACTOR_PEAK.powf(self.sample_rate * dt / HOP_SIZE as f32);
                     g.peak_envelope = (g.peak_envelope * peak_decay).max(frame_peak).max(1e-6);
+                    let over = frame_peak * g.sensitivity / g.peak_envelope;
+                    if over > 1.0 {
+                        g.sensitivity *= 1.0 - 0.02 * frames;
+                    } else if frame_peak > 1e-6 {
+                        g.sensitivity *= 1.0 + 0.001 * frames;
+                    }
+                    g.sensitivity = g.sensitivity.clamp(0.25, 6.0);
+                    let gain = g.sensitivity / g.peak_envelope;
                     let tau = 0.12 + NOISE_REDUCTION * 0.32;
                     let integral = 1.0 - (-dt / tau).exp();
-                    let gravity = (1.0 - NOISE_REDUCTION) * 6.0 * dt * g.peak_envelope;
+                    let gravity = (1.0 - NOISE_REDUCTION) * 6.0 * dt;
                     for (stored, fresh) in g.values.iter_mut().zip(self.new_bands.iter()) {
-                        if *stored < *fresh {
-                            *stored += (*fresh - *stored) * integral;
+                        let target = (*fresh * gain).clamp(0.0, 1.0);
+                        if *stored < target {
+                            *stored += (target - *stored) * integral;
                         } else {
-                            *stored = (*stored - gravity).max(*fresh);
+                            *stored = (*stored - gravity).max(target);
                         }
                     }
                     g.updated_at = Instant::now();
