@@ -7,4 +7,4 @@ pub use equalizer::{
     EqualizerPreset, EqualizerSettings, EQ_FREQUENCIES_HZ, MAX_EQ_GAIN_DB, MIN_EQ_GAIN_DB,
     NUM_EQ_BANDS,
 };
-pub use visualizer::{VisBands, VisualizationSink, NUM_BANDS};
+pub use visualizer::{install_cava_fifo, CavaFifo, VisBands, VisualizationSink, NUM_BANDS};

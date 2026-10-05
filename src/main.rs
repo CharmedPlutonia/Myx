@@ -328,6 +328,8 @@ async fn boot(
     media_platform_ready: bool,
 ) -> Result<MxcHandle> {
     let (ev_tx, ev_rx) = flume::unbounded::<EngineEvent>();
+    // Before the player builds its sink, so the fifo is installed for the first packet.
+    let cava = cava::Cava::spawn(&myx::config::get().cava);
     let engine = with_loader(
         terminal,
         "connecting to Spotify",
@@ -418,7 +420,7 @@ async fn boot(
             fade: None,
         },
         status: "loading library…".to_string(),
-        cava: cava::Cava::spawn(),
+        cava,
         browse: BrowseState {
             library: Library::default(),
             section: Section::Home,

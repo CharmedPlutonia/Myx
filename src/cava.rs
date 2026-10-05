@@ -1,14 +1,16 @@
-//! Embedded default cava.
+//! Embedded cava, fed only Myx's playback.
 //!
-//! Cava owns the spectrum: sensitivity 100, autosens, stereo (lows in the
-//! center), 50 Hz–10 kHz, noise reduction 77. The only overrides are the ones
-//! required to draw it inside the TUI — raw ASCII on stdout, and a fixed bar
-//! count the strip can sample. Input is cava's own default capture.
+//! A private FIFO carries signed 16-bit stereo from the audio sink. Cava never
+//! opens the system monitor. Knobs come from `[cava]` in the Myx config; the
+//! input method is fixed so that cannot be overridden back to system-wide.
 
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
+
+use myx::audio::{install_cava_fifo, CavaFifo};
+use myx::config::CavaConfig;
 
 pub(crate) struct Cava {
     child: Child,
@@ -16,12 +18,40 @@ pub(crate) struct Cava {
 }
 
 impl Cava {
-    pub(crate) fn spawn() -> Option<Self> {
-        let path = std::env::temp_dir().join(format!("myx-cava-{}.conf", std::process::id()));
-        let config = "\
+    pub(crate) fn spawn(cfg: &CavaConfig) -> Option<Self> {
+        let dir = std::env::temp_dir().join(format!("myx-cava-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let fifo_path = dir.join("audio.fifo");
+        let conf_path = dir.join("cava.conf");
+        let _ = std::fs::remove_file(&fifo_path);
+        if nix_mkfifo(&fifo_path).is_err() {
+            return None;
+        }
+        let fifo = CavaFifo::open(&fifo_path).ok()?;
+        install_cava_fifo(fifo);
+
+        let channels = if cfg.channels.eq_ignore_ascii_case("mono") {
+            "mono"
+        } else {
+            "stereo"
+        };
+        let autosens = if cfg.autosens { 1 } else { 0 };
+        let mut config = format!(
+            "\
 [general]
-# defaults: framerate 60, sensitivity 100, autosens 1, 50–10000 Hz
-bars = 64
+framerate = {framerate}
+sensitivity = {sensitivity}
+autosens = {autosens}
+bars = {bars}
+lower_cutoff_freq = {lower}
+higher_cutoff_freq = {higher}
+channels = {channels}
+
+[input]
+method = fifo
+source = {source}
+sample_rate = 44100
+sample_bits = 16
 
 [output]
 method = raw
@@ -32,14 +62,27 @@ bar_delimiter = 59
 frame_delimiter = 10
 
 [smoothing]
-noise_reduction = 77
-";
-        if std::fs::write(&path, config).is_err() {
+noise_reduction = {noise}
+",
+            framerate = cfg.framerate.max(1),
+            sensitivity = cfg.sensitivity.max(0),
+            bars = cfg.bars.clamp(2, 200),
+            lower = cfg.lower_cutoff.max(1),
+            higher = cfg.higher_cutoff.max(cfg.lower_cutoff + 1),
+            source = fifo_path.display(),
+            noise = cfg.noise_reduction.clamp(0, 100),
+        );
+        if let Some(extra) = cfg.extra.as_deref().filter(|s| !s.trim().is_empty()) {
+            config.push('\n');
+            config.push_str(extra);
+            config.push('\n');
+        }
+        if std::fs::write(&conf_path, config).is_err() {
             return None;
         }
         let mut child = Command::new("cava")
             .arg("-p")
-            .arg(&path)
+            .arg(&conf_path)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -76,6 +119,15 @@ noise_reduction = 77
                 Some(g.clone())
             }
         })
+    }
+}
+
+fn nix_mkfifo(path: &std::path::Path) -> std::io::Result<()> {
+    let status = Command::new("mkfifo").arg(path).status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(std::io::Error::other("mkfifo failed"))
     }
 }
 

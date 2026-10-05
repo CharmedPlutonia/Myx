@@ -33,6 +33,44 @@ pub struct Config {
     /// Starting palette: terminal, mocha, tokyonight, catppuccin, rosepine, gruvbox.
     /// `t` cycles these and writes the choice back.
     pub theme: String,
+    /// Embedded cava. Input is always Myx's own audio, never the system monitor.
+    pub cava: CavaConfig,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct CavaConfig {
+    /// Cava `sensitivity`. 100 is the upstream default.
+    pub sensitivity: i64,
+    /// Cava `autosens`.
+    pub autosens: bool,
+    /// Cava `noise_reduction`, 0–100. 77 is the upstream default.
+    pub noise_reduction: i64,
+    pub framerate: i64,
+    /// Bars cava computes. The strip samples these into its own width.
+    pub bars: i64,
+    pub lower_cutoff: i64,
+    pub higher_cutoff: i64,
+    /// `stereo` (lows in the center) or `mono` (left to right).
+    pub channels: String,
+    /// Extra cava config lines, appended as-is. Input method stays fifo.
+    pub extra: Option<String>,
+}
+
+impl Default for CavaConfig {
+    fn default() -> Self {
+        Self {
+            sensitivity: 100,
+            autosens: true,
+            noise_reduction: 77,
+            framerate: 60,
+            bars: 64,
+            lower_cutoff: 50,
+            higher_cutoff: 10000,
+            channels: "stereo".to_string(),
+            extra: None,
+        }
+    }
 }
 
 impl Default for Config {
@@ -46,6 +84,7 @@ impl Default for Config {
             normalize_volume: false,
             reactive_theming: false,
             theme: "terminal".to_string(),
+            cava: CavaConfig::default(),
         }
     }
 }
@@ -90,6 +129,19 @@ const TEMPLATE: &str = "\
 # Palette: terminal, mocha, tokyonight, catppuccin, rosepine, gruvbox.
 # `t` cycles these. terminal follows the terminal's own colors.
 #theme = \"terminal\"
+
+# Embedded cava. It only hears Myx, via a private fifo. Uncomment to change
+# a default. `extra` is raw cava config appended after these keys.
+#[cava]
+#sensitivity = 100
+#autosens = true
+#noise_reduction = 77
+#framerate = 60
+#bars = 64
+#lower_cutoff = 50
+#higher_cutoff = 10000
+#channels = \"stereo\"
+#extra = \"\"
 ";
 
 impl Config {
@@ -189,6 +241,8 @@ mod tests {
         assert!(!c.normalize_volume);
         assert!(!c.reactive_theming);
         assert_eq!(c.theme, "terminal");
+        assert_eq!(c.cava.sensitivity, 100);
+        assert!(c.cava.autosens);
     }
 
     #[test]

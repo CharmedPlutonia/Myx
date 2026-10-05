@@ -11,7 +11,8 @@
 //! via `try_lock`, so the audio thread never stalls waiting on a render.
 
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::mpsc::{self, SyncSender};
 use std::time::Instant;
 
 use librespot_playback::audio_backend::{Sink, SinkResult};
@@ -33,6 +34,54 @@ const NOISE_REDUCTION: f32 = 0.93;
 /// trims it when a bar would pass full height and creeps it back up otherwise.
 const SENSITIVITY: f32 = 1.0;
 const DECAY_FACTOR_PEAK: f32 = 0.9985;
+
+
+/// Signed 16-bit stereo frames for cava's fifo input. The audio thread only
+/// `try_send`s, so a stalled cava never stalls playback.
+static CAVA_FIFO: OnceLock<Arc<CavaFifo>> = OnceLock::new();
+
+pub struct CavaFifo {
+    tx: SyncSender<Vec<i16>>,
+}
+
+impl CavaFifo {
+    /// `path` must already be a FIFO. Opened read-write so cava's read open
+    /// cannot deadlock against us.
+    pub fn open(path: &std::path::Path) -> std::io::Result<Arc<Self>> {
+        let path = path.to_path_buf();
+        let (tx, rx) = mpsc::sync_channel::<Vec<i16>>(16);
+        std::thread::spawn(move || {
+            let mut file = match std::fs::OpenOptions::new().read(true).write(true).open(&path) {
+                Ok(f) => f,
+                Err(_) => return,
+            };
+            use std::io::Write;
+            while let Ok(pcm) = rx.recv() {
+                let bytes: Vec<u8> = pcm.iter().flat_map(|s| s.to_le_bytes()).collect();
+                if file.write_all(&bytes).is_err() {
+                    break;
+                }
+            }
+        });
+        Ok(Arc::new(Self { tx }))
+    }
+
+    pub fn push(&self, interleaved: &[f64]) {
+        let pcm: Vec<i16> = interleaved
+            .iter()
+            .map(|s| (s.clamp(-1.0, 1.0) * i16::MAX as f64) as i16)
+            .collect();
+        let _ = self.tx.try_send(pcm);
+    }
+}
+
+pub fn install_cava_fifo(fifo: Arc<CavaFifo>) {
+    let _ = CAVA_FIFO.set(fifo);
+}
+
+fn cava_fifo() -> Option<&'static Arc<CavaFifo>> {
+    CAVA_FIFO.get()
+}
 
 /// Shared frequency-band state written by the audio sink, read by the renderer.
 pub struct VisBands {
@@ -124,6 +173,9 @@ impl Sink for VisualizationSink {
 
     fn write(&mut self, packet: AudioPacket, converter: &mut Converter) -> SinkResult<()> {
         if let AudioPacket::Samples(ref samples) = packet {
+            if let Some(fifo) = cava_fifo() {
+                fifo.push(samples);
+            }
             // Interleaved stereo -> mono.
             self.sample_buf.extend(samples.chunks(2).map(|c| {
                 if c.len() == 2 {
