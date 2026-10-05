@@ -89,7 +89,7 @@ const TEMPLATE: &str = "\
 
 # Palette: terminal, mocha, tokyonight, catppuccin, rosepine, gruvbox.
 # `t` cycles these. terminal follows the terminal's own colors.
-#theme = "terminal"
+#theme = \"terminal\"
 ";
 
 impl Config {
