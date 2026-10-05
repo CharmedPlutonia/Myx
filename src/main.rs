@@ -570,7 +570,8 @@ async fn run_ui(
     // `sleep()` every loop starves forever when player events are continuously
     // ready: the future gets cancelled/reset before its deadline. That was the
     // frozen-UI bug.
-    let mut frame = tokio::time::interval(Duration::from_millis(16));
+    let tick_ms = (1000 / myx::config::get().cava.framerate.max(1) as u64).clamp(8, 50);
+    let mut frame = tokio::time::interval(Duration::from_millis(tick_ms));
     frame.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut last_draw = Instant::now() - IDLE_REDRAW;
     let mut last_sync = Instant::now();
@@ -687,7 +688,19 @@ async fn run_ui(
                     }
                     dirty = true;
                 }
-                if should_draw(dirty, animating, last_draw.elapsed()) {
+                // [cava] framerate is the redraw cap while the strip is moving.
+                // The old path was hard-capped at 30 fps, which is why it felt
+                // less smooth than cava in its own terminal.
+                let fps = myx::config::get().cava.framerate.max(1) as u64;
+                let anim_frame = Duration::from_millis((1000 / fps).clamp(8, 500));
+                let draw = if dirty {
+                    last_draw.elapsed() >= MIN_FRAME
+                } else if animating {
+                    last_draw.elapsed() >= anim_frame
+                } else {
+                    last_draw.elapsed() >= IDLE_REDRAW
+                };
+                if draw {
                     app.theme.advance();
                     // Present the frame atomically. Without this the terminal
                     // renders whatever has arrived so far, and a recolour that

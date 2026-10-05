@@ -38,13 +38,14 @@ fn draw_bars(f: &mut Frame, theme: Theme, area: Rect, values: &[f32], mirror: bo
         return;
     }
     // The layout already reserved [cava] height rows. Fill that strip.
+    // [cava] bars is the drawn count, not just cava's internal resolution.
     let vh = area.height;
-    let vw = ((area.width as u32 * 9 / 10) as u16)
-        .clamp(24, 80)
-        .min(area.width);
     let unit = BAR_W + BAR_GAP;
-    let n = (vw as usize / unit).max(2);
+    let want = myx::config::get().cava.bars.clamp(2, 200) as usize;
+    let fit = (area.width as usize / unit).max(1);
+    let n = want.min(fit);
     let used = n * unit - BAR_GAP;
+    let vw = (used as u16).min(area.width);
     let vrect = Rect {
         x: area.x + area.width.saturating_sub(used as u16) / 2,
         y: area.y + area.height.saturating_sub(vh) / 2,

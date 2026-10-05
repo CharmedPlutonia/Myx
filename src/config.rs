@@ -46,6 +46,7 @@ pub struct CavaConfig {
     pub autosens: bool,
     /// Cava `noise_reduction`, 0–100. 77 is the upstream default.
     pub noise_reduction: i64,
+    /// Cava output rate and the strip's redraw cap, in frames per second.
     pub framerate: i64,
     /// Bars cava computes. The strip samples these into its own width.
     pub bars: i64,
@@ -139,9 +140,12 @@ const TEMPLATE: &str = "\
 #sensitivity = 100
 #autosens = true
 #noise_reduction = 77
+# Max frames per second for cava and for the strip redraw. Default 60.
 #framerate = 60
 #bars = 64
 #height = 7
+# Lowest and highest frequency the bars cover, in Hz. Default 50 and 10000:
+# bass below 50 and treble above 10000 are left out.
 #lower_cutoff = 50
 #higher_cutoff = 10000
 #channels = \"stereo\"
