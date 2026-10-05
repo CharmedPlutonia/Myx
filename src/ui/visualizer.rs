@@ -47,19 +47,27 @@ pub(crate) fn render_visualizer(f: &mut Frame, app: &App, theme: Theme, area: Re
         return;
     }
 
-    // Stereo mirror: index 0 is the leftmost (highest) bar, the center pair is
-    // the lowest band, and the right edge is high again.
+    // Stereo mirror, sampled between bands so a bar does not jump to the next
+    // bin. Lows stay in the center.
     let half = n / 2;
     let mut cols = vec![0.0f32; n];
     for i in 0..n {
         let from_center = if i < half { half - 1 - i } else { i - half };
         let side = if i < half { half } else { n - half };
-        let band = if side <= 1 {
-            0
+        let t = if side <= 1 {
+            0.0
         } else {
-            from_center * (NUM_BANDS - 1) / (side - 1)
+            from_center as f32 / (side - 1) as f32 * (NUM_BANDS - 1) as f32
         };
-        cols[i] = values[band].clamp(0.0, 1.0);
+        cols[i] = sample_band(&values, t);
+    }
+    for _ in 0..3 {
+        let src = cols.clone();
+        for i in 0..n {
+            let l = src[i.saturating_sub(1)];
+            let r = src[(i + 1).min(n - 1)];
+            cols[i] = l * 0.25 + src[i] * 0.5 + r * 0.25;
+        }
     }
 
     const LEVELS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
@@ -88,4 +96,13 @@ pub(crate) fn render_visualizer(f: &mut Frame, app: &App, theme: Theme, area: Re
         lines.push(Line::from(spans));
     }
     f.render_widget(Paragraph::new(lines), vrect);
+}
+
+fn sample_band(values: &[f32; NUM_BANDS], t: f32) -> f32 {
+    let x = t.clamp(0.0, (NUM_BANDS - 1) as f32);
+    let i = x.floor() as usize;
+    let frac = x - i as f32;
+    let a = values[i];
+    let b = values[(i + 1).min(NUM_BANDS - 1)];
+    (a + (b - a) * frac).clamp(0.0, 1.0)
 }
