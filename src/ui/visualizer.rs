@@ -37,9 +37,8 @@ fn draw_bars(f: &mut Frame, theme: Theme, area: Rect, values: &[f32], mirror: bo
     if values.is_empty() {
         return;
     }
-    let vh = ((area.height as u32 * 3 / 5) as u16)
-        .clamp(6, 14)
-        .min(area.height);
+    // The layout already reserved [cava] height rows. Fill that strip.
+    let vh = area.height;
     let vw = ((area.width as u32 * 9 / 10) as u16)
         .clamp(24, 80)
         .min(area.width);

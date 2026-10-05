@@ -22,10 +22,11 @@ pub(crate) fn render_nowplaying_view(
         return;
     }
 
-    // Album art + track info, then the original 7-row spectrum. No gap under it.
+    // Album art + track info, then the spectrum. Height comes from [cava] height.
+    let viz_rows = myx::config::get().cava.height.clamp(1, 40);
     let chunks = Layout::vertical([
-        Constraint::Min(6),    // art + text
-        Constraint::Length(7), // spectrum
+        Constraint::Min(6),
+        Constraint::Length(viz_rows),
     ])
     .split(area);
     let top = chunks[0];

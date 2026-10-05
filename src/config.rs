@@ -49,6 +49,8 @@ pub struct CavaConfig {
     pub framerate: i64,
     /// Bars cava computes. The strip samples these into its own width.
     pub bars: i64,
+    /// Spectrum strip height in rows. Default 7. Raise this to let the bars grow.
+    pub height: u16,
     pub lower_cutoff: i64,
     pub higher_cutoff: i64,
     /// `stereo` (lows in the center) or `mono` (left to right).
@@ -65,6 +67,7 @@ impl Default for CavaConfig {
             noise_reduction: 77,
             framerate: 60,
             bars: 64,
+            height: 7,
             lower_cutoff: 50,
             higher_cutoff: 10000,
             channels: "stereo".to_string(),
@@ -138,6 +141,7 @@ const TEMPLATE: &str = "\
 #noise_reduction = 77
 #framerate = 60
 #bars = 64
+#height = 7
 #lower_cutoff = 50
 #higher_cutoff = 10000
 #channels = \"stereo\"
