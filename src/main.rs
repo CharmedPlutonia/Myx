@@ -20,6 +20,7 @@ mod app;
 mod input;
 /// The render tree. Reads `App`, writes `FrameOut`; never the other way round.
 /// Lives in the binary (not the library) because it needs `App`, which is here.
+mod cava;
 mod ui;
 
 use std::io;
@@ -417,6 +418,7 @@ async fn boot(
             fade: None,
         },
         status: "loading library…".to_string(),
+        cava: cava::Cava::spawn(),
         browse: BrowseState {
             library: Library::default(),
             section: Section::Home,
@@ -655,7 +657,14 @@ async fn run_ui(
                 let animating = app.theme.fade.is_some()
                     || (app.view.mode == RightView::Lyrics && app.view.lyrics_synced)
                     || (app.view.mode == RightView::NowPlaying
-                        && app.svc.engine.bands.try_lock().map(|g| g.is_active).unwrap_or(false));
+                        && (app.cava.is_some()
+                            || app
+                                .svc
+                                .engine
+                                .bands
+                                .try_lock()
+                                .map(|g| g.is_active)
+                                .unwrap_or(false)));
                 if app.art_repaint != ArtRepaint::Idle {
                     dirty = true;
                 }

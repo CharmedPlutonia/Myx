@@ -54,6 +54,9 @@ pub(crate) struct App {
     pub(crate) session: SessionState,
     // What the album art box owes the next frame. See ArtRepaint.
     pub(crate) art_repaint: ArtRepaint,
+    /// Default cava, raw-output, drawn in the spectrum strip. `None` if the
+    /// `cava` binary is missing — the built-in FFT is the fallback.
+    pub(crate) cava: Option<crate::cava::Cava>,
 }
 
 impl App {
