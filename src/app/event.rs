@@ -168,12 +168,16 @@ pub(crate) fn apply_meta(
         cover,
     });
 
-    if let Some(theme) = meta.theme {
-        app.theme.start_fade(theme);
-        // Same instant, same palette: whatever the UI is fading towards is
-        // exactly what subscribers are told to fade towards.
-        #[cfg(all(feature = "mxc", unix))]
-        publish_theme(app, &theme);
+    // Album-art palettes are opt-in. Off (the default) keeps the startup theme
+    // instead of cross-fading the whole UI on every track.
+    if myx::config::get().reactive_theming {
+        if let Some(theme) = meta.theme {
+            app.theme.start_fade(theme);
+            // Same instant, same palette: whatever the UI is fading towards is
+            // exactly what subscribers are told to fade towards.
+            #[cfg(all(feature = "mxc", unix))]
+            publish_theme(app, &theme);
+        }
     }
 
     if let Some(controls) = app.media_controls.as_mut() {

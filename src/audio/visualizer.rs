@@ -24,10 +24,12 @@ const FFT_SIZE: usize = 1024;
 const HOP_SIZE: usize = 128;
 pub const NUM_BANDS: usize = 128;
 
-/// Per-frame decay for individual bands — snappy but not jittery.
-const DECAY_FACTOR: f32 = 0.985;
-/// Slower decay for the normalization envelope so quiet passages read quiet.
-const DECAY_FACTOR_PEAK: f32 = 0.9985;
+/// Cava's default band edges: 50 Hz – 10 kHz, log-spaced.
+const LOWER_HZ: f32 = 50.0;
+const UPPER_HZ: f32 = 10_000.0;
+/// Cava default `noise_reduction` (0–1). 0.77 is the documented default:
+/// integral rise plus gravity fall, monstercat/waves off.
+const NOISE_REDUCTION: f32 = 0.77;
 
 /// Shared frequency-band state written by the audio sink, read by the renderer.
 pub struct VisBands {
@@ -70,7 +72,6 @@ pub struct VisualizationSink {
     sample_rate: f32,
     band_ranges: Vec<(usize, usize)>,
     new_bands: [f32; NUM_BANDS],
-    smooth_scratch: [f32; NUM_BANDS],
 }
 
 impl VisualizationSink {
@@ -82,7 +83,7 @@ impl VisualizationSink {
                 0.5 * (1.0 - (2.0 * std::f32::consts::PI * i as f32 / (FFT_SIZE - 1) as f32).cos())
             })
             .collect();
-        let band_ranges = precompute_band_ranges(FFT_SIZE / 2, NUM_BANDS);
+        let band_ranges = precompute_band_ranges(FFT_SIZE / 2, NUM_BANDS, sample_rate);
         Self {
             inner,
             sample_buf: VecDeque::with_capacity(FFT_SIZE * 2),
@@ -94,7 +95,6 @@ impl VisualizationSink {
             sample_rate,
             band_ranges,
             new_bands: [0.0; NUM_BANDS],
-            smooth_scratch: [0.0; NUM_BANDS],
         }
     }
 }
@@ -163,18 +163,30 @@ impl Sink for VisualizationSink {
                 }
 
                 fill_log_bands(&self.magnitudes, &self.band_ranges, &mut self.new_bands);
-                smooth_bands(&mut self.new_bands, &mut self.smooth_scratch);
 
                 if let Ok(mut g) = self.bands.lock() {
-                    let elapsed_hops =
-                        g.updated_at.elapsed().as_secs_f32() * self.sample_rate / HOP_SIZE as f32;
-                    let decay = DECAY_FACTOR.powf(elapsed_hops);
-                    let peak_decay = DECAY_FACTOR_PEAK.powf(elapsed_hops);
+                    // One hop is the time base, matching cava's per-frame
+                    // integral/gravity filters rather than a peak-hold.
+                    let dt = (HOP_SIZE as f32 / self.sample_rate).clamp(0.001, 0.05);
                     let frame_peak = self.new_bands.iter().copied().fold(0.0_f32, f32::max);
+                    // Autosens (cava default on): instant attack so a loud
+                    // transient does not pin every bar, slow release so a
+                    // quiet passage can still fill the scale.
+                    let release = (-dt / 1.4).exp();
+                    g.peak_envelope = (g.peak_envelope * release).max(frame_peak).max(1e-6);
+                    let sens = 0.92 / g.peak_envelope;
+                    // noise_reduction 0.77 → ~140 ms rise, ~0.6 s full-scale fall.
+                    let tau = 0.05 + NOISE_REDUCTION * 0.12;
+                    let integral = 1.0 - (-dt / tau).exp();
+                    let gravity = (1.0 - NOISE_REDUCTION) * 4.5 * dt;
                     for (stored, fresh) in g.values.iter_mut().zip(self.new_bands.iter()) {
-                        *stored = (*stored * decay).max(*fresh);
+                        let target = (*fresh * sens).clamp(0.0, 1.0);
+                        if *stored < target {
+                            *stored += (target - *stored) * integral;
+                        } else {
+                            *stored = (*stored - gravity).max(target);
+                        }
                     }
-                    g.peak_envelope = (g.peak_envelope * peak_decay).max(frame_peak);
                     g.updated_at = Instant::now();
                 }
 
@@ -186,20 +198,22 @@ impl Sink for VisualizationSink {
     }
 }
 
-fn precompute_band_ranges(num_bins: usize, num_bands: usize) -> Vec<(usize, usize)> {
-    let log_min = 1.0_f64;
-    let log_max = num_bins as f64;
-    let mut used_up_to: usize = 1;
+fn precompute_band_ranges(num_bins: usize, num_bands: usize, sample_rate: f32) -> Vec<(usize, usize)> {
+    let nyquist = (sample_rate / 2.0).max(1.0);
+    let hz_per_bin = nyquist / num_bins as f32;
+    let f_lo = LOWER_HZ;
+    let f_hi = UPPER_HZ.min(nyquist * 0.98).max(f_lo + 1.0);
+    let mut used_up_to = ((f_lo / hz_per_bin) as usize).clamp(1, num_bins - 1);
     let mut ranges = Vec::with_capacity(num_bands);
     for band in 0..num_bands {
         if used_up_to >= num_bins {
             ranges.push((num_bins - 1, num_bins));
             continue;
         }
-        let t_start = band as f64 / num_bands as f64;
-        let t_end = (band + 1) as f64 / num_bands as f64;
-        let natural_start = (log_min * (log_max / log_min).powf(t_start)) as usize;
-        let natural_end = (log_min * (log_max / log_min).powf(t_end)) as usize;
+        let t_start = band as f32 / num_bands as f32;
+        let t_end = (band + 1) as f32 / num_bands as f32;
+        let natural_start = (f_lo * (f_hi / f_lo).powf(t_start) / hz_per_bin) as usize;
+        let natural_end = (f_lo * (f_hi / f_lo).powf(t_end) / hz_per_bin) as usize;
         let start = natural_start.max(used_up_to).min(num_bins - 1);
         let end = natural_end.max(start + 1).min(num_bins);
         used_up_to = end;
@@ -216,15 +230,3 @@ fn fill_log_bands(magnitudes: &[f32], band_ranges: &[(usize, usize)], out: &mut 
     }
 }
 
-fn smooth_bands(bands: &mut [f32], scratch: &mut [f32]) {
-    let n = bands.len();
-    if n < 3 {
-        return;
-    }
-    scratch[..n].copy_from_slice(&bands[..n]);
-    for i in 0..n {
-        let prev = scratch[if i > 0 { i - 1 } else { 0 }];
-        let next = scratch[if i + 1 < n { i + 1 } else { n - 1 }];
-        bands[i] = prev * 0.25 + scratch[i] * 0.5 + next * 0.25;
-    }
-}

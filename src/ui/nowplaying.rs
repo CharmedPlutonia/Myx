@@ -22,12 +22,12 @@ pub(crate) fn render_nowplaying_view(
         return;
     }
 
-    // Split: album art + track info on top, a compact spectrum below, lifted a
-    // little off the bottom.
+    // Split: album art + track info on top, a cava-style spectrum below.
+    // The strip is the visualizer's whole window (`max_height = 100`).
     let chunks = Layout::vertical([
-        Constraint::Min(6),    // art + text
-        Constraint::Length(7), // spectrum
-        Constraint::Length(2), // breathing room (lifts the spectrum up)
+        Constraint::Min(6),     // art + text
+        Constraint::Length(11), // spectrum
+        Constraint::Length(1),  // breathing room
     ])
     .split(area);
     let top = chunks[0];

@@ -28,6 +28,9 @@ pub struct Config {
     /// Even out loudness across tracks, the equivalent of the official client's
     /// "Normalize volume". Off leaves each track's own dynamics alone.
     pub normalize_volume: bool,
+    /// Recolor the whole UI from the current cover. Off keeps the startup
+    /// palette (Tokyo Night) for the session.
+    pub reactive_theming: bool,
 }
 
 impl Default for Config {
@@ -39,6 +42,7 @@ impl Default for Config {
             protocol: None,
             bitrate: 160,
             normalize_volume: false,
+            reactive_theming: false,
         }
     }
 }
@@ -76,6 +80,9 @@ const TEMPLATE: &str = "\
 # Even out loudness across tracks, like the official client's \"Normalize
 # volume\". Leave it off to keep each track's own dynamics.
 #normalize_volume = false
+
+# Recolor the UI from the current album cover. Off keeps Tokyo Night.
+#reactive_theming = false
 ";
 
 impl Config {
@@ -140,6 +147,7 @@ mod tests {
         assert!(c.client_id.is_none());
         assert_eq!(c.bitrate, 160);
         assert!(!c.normalize_volume);
+        assert!(!c.reactive_theming);
     }
 
     #[test]
@@ -208,6 +216,7 @@ mod tests {
         assert!(c.protocol.is_none());
         assert_eq!(c.bitrate, d.bitrate);
         assert_eq!(c.normalize_volume, d.normalize_volume);
+        assert_eq!(c.reactive_theming, d.reactive_theming);
     }
 
     #[test]
