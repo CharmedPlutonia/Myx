@@ -7,8 +7,8 @@
 
 use crate::*;
 
-/// Cava `bar_width`. Spacing is intentionally 0.
 const BAR_W: usize = 2;
+const BAR_GAP: usize = 1;
 
 pub(crate) fn render_visualizer(f: &mut Frame, app: &App, theme: Theme, area: Rect) {
     let active = app
@@ -25,6 +25,7 @@ pub(crate) fn render_visualizer(f: &mut Frame, app: &App, theme: Theme, area: Re
         return;
     };
     let values: [f32; NUM_BANDS] = guard.values;
+    let peak = guard.peak_envelope.max(1e-6);
     drop(guard);
 
     // Original footprint: a centered band, not the full pane.
@@ -34,8 +35,9 @@ pub(crate) fn render_visualizer(f: &mut Frame, app: &App, theme: Theme, area: Re
     let vw = ((area.width as u32 * 9 / 10) as u16)
         .clamp(24, 80)
         .min(area.width);
-    let n = (vw as usize / BAR_W).max(2);
-    let used = n * BAR_W;
+    let unit = BAR_W + BAR_GAP;
+    let n = (vw as usize / unit).max(2);
+    let used = n * unit - BAR_GAP;
     let vrect = Rect {
         x: area.x + area.width.saturating_sub(used as u16) / 2,
         y: area.y + area.height.saturating_sub(vh) / 2,
@@ -59,7 +61,8 @@ pub(crate) fn render_visualizer(f: &mut Frame, app: &App, theme: Theme, area: Re
         } else {
             from_center as f32 / (side - 1) as f32 * (NUM_BANDS - 1) as f32
         };
-        cols[i] = sample_band(&values, t);
+        // Pre-cava sensitivity: normalize to the peak, then sqrt.
+        cols[i] = (sample_band(&values, t) / peak).sqrt().clamp(0.0, 1.0);
     }
     for _ in 0..3 {
         let src = cols.clone();
@@ -78,7 +81,7 @@ pub(crate) fn render_visualizer(f: &mut Frame, app: &App, theme: Theme, area: Re
     for row in 0..h {
         let from_bottom = (h - 1 - row) as f32;
         let mut spans: Vec<Span> = Vec::with_capacity(n);
-        for &v in &cols {
+        for (i, &v) in cols.iter().enumerate() {
             let filled = v * h as f32 - from_bottom;
             let ch = if filled >= 1.0 {
                 '█'
@@ -91,6 +94,9 @@ pub(crate) fn render_visualizer(f: &mut Frame, app: &App, theme: Theme, area: Re
                 spans.push(Span::raw(" ".repeat(BAR_W)));
             } else {
                 spans.push(Span::styled(ch.to_string().repeat(BAR_W), style));
+            }
+            if i + 1 < cols.len() {
+                spans.push(Span::raw(" ".repeat(BAR_GAP)));
             }
         }
         lines.push(Line::from(spans));

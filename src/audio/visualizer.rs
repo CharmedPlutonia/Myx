@@ -29,9 +29,8 @@ const LOWER_HZ: f32 = 50.0;
 const UPPER_HZ: f32 = 10_000.0;
 /// Higher than cava's 0.77 so the bars glide instead of stepping.
 const NOISE_REDUCTION: f32 = 0.93;
-/// Extra gain on top of autosens. 1.0 fills the strip on the peak band;
-/// higher lifts the rest of the spectrum so quiet passages stay visible.
-const SENSITIVITY: f32 = 2.4;
+/// Original peak-envelope decay, per hop. Quiet passages stay quiet.
+const DECAY_FACTOR_PEAK: f32 = 0.9985;
 
 /// Shared frequency-band state written by the audio sink, read by the renderer.
 pub struct VisBands {
@@ -172,20 +171,18 @@ impl Sink for VisualizationSink {
                     let frame_peak = self.new_bands.iter().copied().fold(0.0_f32, f32::max);
                     // Slow release so a quiet bar can grow, without a loud hit
                     // pinning the scale so hard the rest disappears.
-                    let release = (-dt / 2.4).exp();
-                    g.peak_envelope = (g.peak_envelope * release).max(frame_peak).max(1e-6);
-                    let sens = SENSITIVITY / g.peak_envelope;
-                    // ~0.4 s rise, ~2.5 s full-scale fall. Choppy steps come from
-                    // the gravity catching the raw FFT every hop.
+                    // Same envelope as the pre-cava visualizer: raw magnitudes,
+                    // peak held with a slow decay. The sqrt scale is applied at draw.
+                    let peak_decay = DECAY_FACTOR_PEAK.powf(self.sample_rate * dt / HOP_SIZE as f32);
+                    g.peak_envelope = (g.peak_envelope * peak_decay).max(frame_peak).max(1e-6);
                     let tau = 0.12 + NOISE_REDUCTION * 0.32;
                     let integral = 1.0 - (-dt / tau).exp();
-                    let gravity = (1.0 - NOISE_REDUCTION) * 6.0 * dt;
+                    let gravity = (1.0 - NOISE_REDUCTION) * 6.0 * dt * g.peak_envelope;
                     for (stored, fresh) in g.values.iter_mut().zip(self.new_bands.iter()) {
-                        let shaped = (*fresh * sens).clamp(0.0, 1.0).powf(0.65);
-                        if *stored < shaped {
-                            *stored += (shaped - *stored) * integral;
+                        if *stored < *fresh {
+                            *stored += (*fresh - *stored) * integral;
                         } else {
-                            *stored = (*stored - gravity).max(shaped);
+                            *stored = (*stored - gravity).max(*fresh);
                         }
                     }
                     g.updated_at = Instant::now();
