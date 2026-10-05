@@ -1,15 +1,14 @@
 //! Spectrum bars under the album art.
 //!
-//! Drawn to cava's documented defaults: auto bar count, width 2, spacing 1,
-//! bottom-aligned, linear scale, 50 Hz–10 kHz (applied in the sink), noise
-//! reduction 0.77 with monstercat/waves off, and a single foreground color
-//! (`gradient = 0`, `foreground = default`).
+//! Cava's default `channels = stereo`: both sides are mirrored, low frequencies
+//! in the center and highs toward the edges (`example_files/config`). Bar width
+//! stays at cava's 2. Spacing is 0 (cava's default is 1; this fork drops the gap).
+//! The drawing rect is the original compact size.
 
 use crate::*;
 
-/// Cava `bar_width` / `bar_spacing`.
+/// Cava `bar_width`. Spacing is intentionally 0.
 const BAR_W: usize = 2;
-const BAR_GAP: usize = 1;
 
 pub(crate) fn render_visualizer(f: &mut Frame, app: &App, theme: Theme, area: Rect) {
     let active = app
@@ -25,38 +24,53 @@ pub(crate) fn render_visualizer(f: &mut Frame, app: &App, theme: Theme, area: Re
     let Ok(guard) = app.svc.engine.bands.try_lock() else {
         return;
     };
-    // Already linear 0–1 after the sink's autosens + gravity filter.
     let values: [f32; NUM_BANDS] = guard.values;
     drop(guard);
 
-    let h = area.height as usize;
-    let unit = BAR_W + BAR_GAP;
-    let n = area.width as usize / unit;
-    if n == 0 || h == 0 {
+    // Original footprint: a centered band, not the full pane.
+    let vh = ((area.height as u32 * 3 / 5) as u16)
+        .clamp(6, 14)
+        .min(area.height);
+    let vw = ((area.width as u32 * 9 / 10) as u16)
+        .clamp(24, 80)
+        .min(area.width);
+    let n = (vw as usize / BAR_W).max(2);
+    let used = n * BAR_W;
+    let vrect = Rect {
+        x: area.x + area.width.saturating_sub(used as u16) / 2,
+        y: area.y + area.height.saturating_sub(vh) / 2,
+        width: used as u16,
+        height: vh,
+    };
+    let h = vrect.height as usize;
+    if h == 0 {
         return;
     }
-    // `bars = 0` fills the width; `center_align = 1` centers a shortfall.
-    let used = n * unit - BAR_GAP;
-    let x0 = area.x + ((area.width as usize - used) / 2) as u16;
 
+    // Stereo mirror: index 0 is the leftmost (highest) bar, the center pair is
+    // the lowest band, and the right edge is high again.
+    let half = n / 2;
     let mut cols = vec![0.0f32; n];
-    for (i, c) in cols.iter_mut().enumerate() {
-        let lo = i * NUM_BANDS / n;
-        let hi = ((i + 1) * NUM_BANDS / n).max(lo + 1).min(NUM_BANDS);
-        let sum: f32 = values[lo..hi].iter().copied().sum();
-        *c = (sum / (hi - lo) as f32).clamp(0.0, 1.0);
+    for i in 0..n {
+        let from_center = if i < half { half - 1 - i } else { i - half };
+        let side = if i < half { half } else { n - half };
+        let band = if side <= 1 {
+            0
+        } else {
+            from_center * (NUM_BANDS - 1) / (side - 1)
+        };
+        cols[i] = values[band].clamp(0.0, 1.0);
     }
 
     const LEVELS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-    // `foreground = default`: the UI's text role, not a cover-derived gradient.
     let color: ratatui::style::Color = theme.text.into();
     let style = Style::default().fg(color);
 
     let mut lines: Vec<Line> = Vec::with_capacity(h);
     for row in 0..h {
         let from_bottom = (h - 1 - row) as f32;
-        let mut spans: Vec<Span> = Vec::with_capacity(used);
-        for (i, &v) in cols.iter().enumerate() {
+        let mut spans: Vec<Span> = Vec::with_capacity(n);
+        for &v in &cols {
             let filled = v * h as f32 - from_bottom;
             let ch = if filled >= 1.0 {
                 '█'
@@ -65,23 +79,13 @@ pub(crate) fn render_visualizer(f: &mut Frame, app: &App, theme: Theme, area: Re
             } else {
                 LEVELS[((filled * 8.0) as usize).clamp(1, 8) - 1]
             };
-            let cell = if ch == ' ' {
-                Span::raw(" ".repeat(BAR_W))
+            if ch == ' ' {
+                spans.push(Span::raw(" ".repeat(BAR_W)));
             } else {
-                Span::styled(ch.to_string().repeat(BAR_W), style)
-            };
-            spans.push(cell);
-            if i + 1 < n {
-                spans.push(Span::raw(" ".repeat(BAR_GAP)));
+                spans.push(Span::styled(ch.to_string().repeat(BAR_W), style));
             }
         }
         lines.push(Line::from(spans));
     }
-    let vrect = Rect {
-        x: x0,
-        y: area.y,
-        width: used as u16,
-        height: area.height,
-    };
     f.render_widget(Paragraph::new(lines), vrect);
 }

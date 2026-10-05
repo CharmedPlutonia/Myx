@@ -209,6 +209,30 @@ pub const TERMINAL: Theme = Theme {
     border_dimmest: Rgb::ansi(8),
 };
 
+
+/// Catppuccin Mocha, using Freearchy's `themes/catppuccin-mocha` palette:
+/// base `#1e1e2e`, text `#cdd6f4`, accent `#cba6f7`, and the 16-color set
+/// from that theme's `colors.toml` / `alacritty.toml`.
+pub const MOCHA: Theme = Theme {
+    name: "mocha",
+    primary: c(0xcb, 0xa6, 0xf7),
+    secondary: c(0x89, 0xb4, 0xfa),
+    accent: c(0xf5, 0xc2, 0xe7),
+    error: c(0xf3, 0x8b, 0xa8),
+    warning: c(0xf9, 0xe2, 0xaf),
+    success: c(0xa6, 0xe3, 0xa1),
+    info: c(0x94, 0xe2, 0xd5),
+    text: c(0xcd, 0xd6, 0xf4),
+    text_muted: c(0x7f, 0x84, 0x9c),
+    background: c(0x1e, 0x1e, 0x2e),
+    background_panel: c(0x18, 0x18, 0x25),
+    background_element: c(0x31, 0x32, 0x44),
+    border: c(0x45, 0x47, 0x5a),
+    border_active: c(0xcb, 0xa6, 0xf7),
+    border_subtle: c(0x45, 0x47, 0x5a),
+    border_dimmest: c(0x31, 0x32, 0x44),
+};
+
 pub const GRUVBOX: Theme = Theme {
     name: "gruvbox",
     primary: c(0x83, 0xa5, 0x98),
@@ -230,4 +254,21 @@ pub const GRUVBOX: Theme = Theme {
 };
 
 /// All built-in themes, in picker order.
-pub const THEMES: &[Theme] = &[TOKYONIGHT, CATPPUCCIN, ROSEPINE, GRUVBOX];
+pub const THEMES: &[Theme] = &[TERMINAL, MOCHA, TOKYONIGHT, CATPPUCCIN, ROSEPINE, GRUVBOX];
+
+/// Resolve a config name. Unknown names fall back to the terminal palette.
+pub fn by_name(name: &str) -> Theme {
+    let want = name.trim().to_ascii_lowercase();
+    THEMES
+        .iter()
+        .copied()
+        .find(|t| t.name == want || (want == "catppuccin-mocha" && t.name == "mocha"))
+        .unwrap_or(TERMINAL)
+}
+
+/// The theme after `name` in picker order, wrapping.
+pub fn next(name: &str) -> Theme {
+    let i = THEMES.iter().position(|t| t.name == name).unwrap_or(0);
+    THEMES[(i + 1) % THEMES.len()]
+}
+

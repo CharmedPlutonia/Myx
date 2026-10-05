@@ -207,6 +207,12 @@ pub(crate) fn handle_key(
         }
         // The frame loop notices the layout change and wipes the art box.
         KeyCode::Char('z') => app.view.zen = !app.view.zen,
+        KeyCode::Char('t') => {
+            let next = myx::theme::next(app.theme.target.name);
+            app.theme.start_fade(next);
+            app.status = format!("theme: {}", next.name);
+            myx::config::set_theme(next.name);
+        }
         KeyCode::Down | KeyCode::Char('j') => app.move_sel(1),
         KeyCode::Up | KeyCode::Char('k') => app.move_sel(-1),
         // Needs a terminal that reports modified Enter (kitty, WezTerm, foot).

@@ -28,9 +28,11 @@ pub struct Config {
     /// Even out loudness across tracks, the equivalent of the official client's
     /// "Normalize volume". Off leaves each track's own dynamics alone.
     pub normalize_volume: bool,
-    /// Recolor the whole UI from the current cover. Off keeps the terminal
-    /// palette for the session.
+    /// Recolor the whole UI from the current cover. Off keeps `theme`.
     pub reactive_theming: bool,
+    /// Starting palette: terminal, mocha, tokyonight, catppuccin, rosepine, gruvbox.
+    /// `t` cycles these and writes the choice back.
+    pub theme: String,
 }
 
 impl Default for Config {
@@ -43,6 +45,7 @@ impl Default for Config {
             bitrate: 160,
             normalize_volume: false,
             reactive_theming: false,
+            theme: "terminal".to_string(),
         }
     }
 }
@@ -81,8 +84,12 @@ const TEMPLATE: &str = "\
 # volume\". Leave it off to keep each track's own dynamics.
 #normalize_volume = false
 
-# Recolor the UI from the current album cover. Off keeps the terminal palette.
+# Recolor the UI from the current album cover. Off keeps `theme`.
 #reactive_theming = false
+
+# Palette: terminal, mocha, tokyonight, catppuccin, rosepine, gruvbox.
+# `t` cycles these. terminal follows the terminal's own colors.
+#theme = "terminal"
 ";
 
 impl Config {
@@ -135,6 +142,39 @@ fn write_template(path: &Path) {
     let _ = std::fs::write(path, TEMPLATE);
 }
 
+
+/// Best-effort write of the active theme so `t` survives a restart.
+pub fn set_theme(name: &str) {
+    let Some(path) = Config::path() else {
+        return;
+    };
+    let body = std::fs::read_to_string(&path).unwrap_or_default();
+    let line = format!("theme = \"{name}\"");
+    let mut out = String::new();
+    let mut found = false;
+    for raw in body.lines() {
+        let trimmed = raw.trim().trim_start_matches('#');
+        if trimmed.starts_with("theme") && trimmed.contains('=') {
+            if !found {
+                out.push_str(&line);
+                out.push('\n');
+                found = true;
+            }
+            continue;
+        }
+        out.push_str(raw);
+        out.push('\n');
+    }
+    if !found {
+        if !out.is_empty() && !out.ends_with('\n') {
+            out.push('\n');
+        }
+        out.push_str(&line);
+        out.push('\n');
+    }
+    let _ = std::fs::write(path, out);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -148,6 +188,7 @@ mod tests {
         assert_eq!(c.bitrate, 160);
         assert!(!c.normalize_volume);
         assert!(!c.reactive_theming);
+        assert_eq!(c.theme, "terminal");
     }
 
     #[test]
@@ -217,6 +258,7 @@ mod tests {
         assert_eq!(c.bitrate, d.bitrate);
         assert_eq!(c.normalize_volume, d.normalize_volume);
         assert_eq!(c.reactive_theming, d.reactive_theming);
+        assert_eq!(c.theme, d.theme);
     }
 
     #[test]

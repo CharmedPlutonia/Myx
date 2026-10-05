@@ -56,7 +56,7 @@ use myx::liblog::{install_librespot_log, liblog};
 use myx::lyrics::parse::parse_lrc;
 use myx::reactive::derive_theme;
 use myx::term::{acquire_single_instance_lock, init_terminal, restore_terminal, Term};
-use myx::theme::{Theme, TERMINAL};
+use myx::theme::{self, Theme};
 use myx::util::{center_v, fmt_ms, track_id_from_uri, truncate, uri_to_url, urlencode, vol_u16};
 use myx::webapi::WebApi;
 use ui::{render, render_loading};
@@ -412,8 +412,8 @@ async fn boot(
             seek_last_input: Instant::now(),
         },
         theme: ThemeState {
-            displayed: TERMINAL,
-            target: TERMINAL,
+            displayed: theme::by_name(&myx::config::get().theme),
+            target: theme::by_name(&myx::config::get().theme),
             fade: None,
         },
         status: "loading library…".to_string(),
