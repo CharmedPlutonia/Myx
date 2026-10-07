@@ -69,15 +69,16 @@ struct ManualSpec {
     roles: BTreeMap<String, String>,
 }
 
-/// True when the user asked myx to paint from terminal colors.
+/// Terminal colors are the default. `mode = "album"` is the only way back to
+/// cover recoloring. A missing config must not fall through to Tokyo Night.
 pub fn enabled() -> bool {
-    load_spec().mode == MODE_TERMINAL
+    load_spec().mode != "album"
 }
 
-/// The theme to show instead of the album-art palette. `None` in album mode.
+/// The theme to show instead of the album-art palette. `None` only in album mode.
 pub fn theme() -> Option<Theme> {
     let spec = load_spec();
-    if spec.mode != MODE_TERMINAL {
+    if spec.mode == "album" {
         return None;
     }
     let palette = load_palette();
@@ -142,7 +143,7 @@ fn fallback(slot: &str) -> Rgb {
 
 fn load_spec() -> ManualSpec {
     let mut spec = ManualSpec {
-        mode: "album".to_string(),
+        mode: MODE_TERMINAL.to_string(),
         roles: DEFAULT_ROLES
             .iter()
             .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
@@ -153,7 +154,9 @@ fn load_spec() -> ManualSpec {
     };
     let parsed = parse_assignments(&text);
     if let Some(mode) = parsed.get("mode") {
-        spec.mode = mode.clone();
+        if mode == "album" || mode == MODE_TERMINAL {
+            spec.mode = mode.clone();
+        }
     }
     for (key, value) in parsed {
         if key == "mode" {
