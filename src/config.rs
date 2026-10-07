@@ -76,6 +76,10 @@ const TEMPLATE: &str = "\
 # Even out loudness across tracks, like the official client's \"Normalize
 # volume\". Leave it off to keep each track's own dynamics.
 #normalize_volume = false
+
+# Terminal colors live in ~/.config/myx/colors.toml, not here. Set
+# mode = \"terminal\" there to paint from the active theme instead of album art.
+# progress, volume, and cava share the accent role unless you remap them.
 ";
 
 impl Config {

@@ -411,10 +411,13 @@ async fn boot(
             seek_last_step: Instant::now(),
             seek_last_input: Instant::now(),
         },
-        theme: ThemeState {
-            displayed: TOKYONIGHT,
-            target: TOKYONIGHT,
-            fade: None,
+        theme: {
+            let initial = myx::manual_theme::theme().unwrap_or(TOKYONIGHT);
+            ThemeState {
+                displayed: initial,
+                target: initial,
+                fade: None,
+            }
         },
         status: "loading library…".to_string(),
         browse: BrowseState {

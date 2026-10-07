@@ -167,10 +167,16 @@ pub(crate) fn render_progress(f: &mut Frame, app: &App, theme: Theme, area: Rect
     let filled = ((pos as f32 / dur as f32) * bar_w as f32) as usize;
 
     let mut spans = vec![Span::styled(left, theme.muted())];
+    let accent = theme.accent;
+    let (start, end) = if theme.name == "terminal" {
+        (accent, accent)
+    } else {
+        (theme.primary, theme.accent)
+    };
     spans.extend(gradient_progress(
         bar_w,
         filled,
-        &[theme.primary, theme.accent],
+        &[start, end],
         theme.border_dimmest,
     ));
     spans.push(Span::styled(right, theme.muted()));
@@ -191,7 +197,11 @@ pub(crate) fn render_volume(
     let mut vspans: Vec<Span> = Vec::with_capacity(VLEV.len() + 1);
     for (i, ch) in VLEV.iter().enumerate() {
         let color = if i < filled {
-            theme.primary
+            if theme.name == "terminal" {
+                theme.accent
+            } else {
+                theme.primary
+            }
         } else {
             theme.border_dimmest
         };

@@ -168,7 +168,11 @@ pub(crate) fn apply_meta(
         cover,
     });
 
-    if let Some(theme) = meta.theme {
+    if let Some(theme) = myx::manual_theme::theme() {
+        app.theme.start_fade(theme);
+        #[cfg(all(feature = "mxc", unix))]
+        publish_theme(app, &theme);
+    } else if let Some(theme) = meta.theme {
         app.theme.start_fade(theme);
         // Same instant, same palette: whatever the UI is fading towards is
         // exactly what subscribers are told to fade towards.

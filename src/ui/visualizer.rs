@@ -64,7 +64,11 @@ pub(crate) fn render_visualizer(f: &mut Frame, app: &App, theme: Theme, area: Re
     // 3. Render with an eighth-block sub-cell tip and a vertical color gradient
     //    (info at the base → primary → accent at the peaks) for a smooth wash.
     const LEVELS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-    let stops = [theme.info, theme.primary, theme.accent];
+    let stops = if theme.name == "terminal" {
+        [theme.accent, theme.accent, theme.accent]
+    } else {
+        [theme.info, theme.primary, theme.accent]
+    };
 
     let mut lines: Vec<Line> = Vec::with_capacity(h);
     for row in 0..h {

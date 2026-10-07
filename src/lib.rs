@@ -15,6 +15,7 @@ pub mod gradient;
 pub mod httpcache;
 pub mod liblog;
 pub mod lyrics;
+pub mod manual_theme;
 pub mod reactive;
 pub mod theme;
 pub mod util;
