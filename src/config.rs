@@ -35,6 +35,8 @@ pub struct Config {
     pub theme: String,
     /// Embedded cava. Input is always Myx's own audio, never the system monitor.
     pub cava: CavaConfig,
+    /// Which terminal color each role uses when `theme = "terminal"`.
+    pub colors: ColorRoles,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -58,6 +60,57 @@ pub struct CavaConfig {
     pub channels: String,
     /// Extra cava config lines, appended as-is. Input method stays fifo.
     pub extra: Option<String>,
+}
+
+/// Role → terminal slot for `theme = "terminal"`.
+///
+/// Slots: `color0`–`color15`, `foreground`, `background`, `terminal`, or `#hex`.
+/// The mocha map is the default for every terminal theme: progress, volume, and
+/// cava all read `accent`.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct ColorRoles {
+    pub background: String,
+    pub panel: String,
+    pub element: String,
+    pub text: String,
+    pub text_muted: String,
+    pub primary: String,
+    pub secondary: String,
+    pub accent: String,
+    pub error: String,
+    pub warning: String,
+    pub success: String,
+    pub info: String,
+    pub border: String,
+    pub border_active: String,
+    pub border_subtle: String,
+    pub border_dimmest: String,
+    pub cava: String,
+}
+
+impl Default for ColorRoles {
+    fn default() -> Self {
+        Self {
+            background: "terminal".to_string(),
+            panel: "terminal".to_string(),
+            element: "color8".to_string(),
+            text: "foreground".to_string(),
+            text_muted: "color8".to_string(),
+            primary: "color5".to_string(),
+            secondary: "color4".to_string(),
+            accent: "color5".to_string(),
+            error: "color1".to_string(),
+            warning: "color3".to_string(),
+            success: "color2".to_string(),
+            info: "color5".to_string(),
+            border: "color8".to_string(),
+            border_active: "color5".to_string(),
+            border_subtle: "color8".to_string(),
+            border_dimmest: "color8".to_string(),
+            cava: "color5".to_string(),
+        }
+    }
 }
 
 impl Default for CavaConfig {
@@ -89,6 +142,7 @@ impl Default for Config {
             reactive_theming: false,
             theme: "terminal".to_string(),
             cava: CavaConfig::default(),
+            colors: ColorRoles::default(),
         }
     }
 }
@@ -150,6 +204,29 @@ const TEMPLATE: &str = "\
 #higher_cutoff = 10000
 #channels = \"stereo\"
 #extra = \"\"
+
+# Which terminal color each role uses when theme = \"terminal\".
+# Slots: color0-color15, foreground, background, terminal, or a #hex.
+# This is the mocha map, and it is the default for every terminal theme.
+# progress, volume, and cava all use accent — change accent to recolor all three.
+#[colors]
+#background = \"terminal\"
+#panel = \"terminal\"
+#element = \"color8\"
+#text = \"foreground\"
+#text_muted = \"color8\"
+#primary = \"color5\"
+#secondary = \"color4\"
+#accent = \"color5\"
+#error = \"color1\"
+#warning = \"color3\"
+#success = \"color2\"
+#info = \"color5\"
+#border = \"color8\"
+#border_active = \"color5\"
+#border_subtle = \"color8\"
+#border_dimmest = \"color8\"
+#cava = \"color5\"
 ";
 
 impl Config {

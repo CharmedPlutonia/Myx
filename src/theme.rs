@@ -257,18 +257,83 @@ pub const GRUVBOX: Theme = Theme {
 pub const THEMES: &[Theme] = &[TERMINAL, MOCHA, TOKYONIGHT, CATPPUCCIN, ROSEPINE, GRUVBOX];
 
 /// Resolve a config name. Unknown names fall back to the terminal palette.
+/// `terminal` uses `[colors]` in config, so the mocha slot map is the default
+/// and a user can retarget any role.
 pub fn by_name(name: &str) -> Theme {
     let want = name.trim().to_ascii_lowercase();
+    if want == "terminal" {
+        return terminal_from_config();
+    }
     THEMES
         .iter()
         .copied()
         .find(|t| t.name == want || (want == "catppuccin-mocha" && t.name == "mocha"))
-        .unwrap_or(TERMINAL)
+        .unwrap_or_else(terminal_from_config)
 }
 
-/// The theme after `name` in picker order, wrapping.
+/// The theme after `name` in picker order, wrapping. Terminal is rebuilt from
+/// the role map so `t` does not snap back to the hardcoded ANSI defaults.
 pub fn next(name: &str) -> Theme {
     let i = THEMES.iter().position(|t| t.name == name).unwrap_or(0);
-    THEMES[(i + 1) % THEMES.len()]
+    let next = THEMES[(i + 1) % THEMES.len()];
+    if next.name == "terminal" {
+        terminal_from_config()
+    } else {
+        next
+    }
+}
+
+fn terminal_from_config() -> Theme {
+    #[cfg(feature = "streaming")]
+    {
+        let roles = &crate::config::get().colors;
+        return Theme {
+            name: "terminal",
+            primary: slot(&roles.primary),
+            secondary: slot(&roles.secondary),
+            accent: slot(&roles.accent),
+            error: slot(&roles.error),
+            warning: slot(&roles.warning),
+            success: slot(&roles.success),
+            info: slot(&roles.info),
+            text: slot(&roles.text),
+            text_muted: slot(&roles.text_muted),
+            background: slot(&roles.background),
+            background_panel: slot(&roles.panel),
+            background_element: slot(&roles.element),
+            border: slot(&roles.border),
+            border_active: slot(&roles.border_active),
+            border_subtle: slot(&roles.border_subtle),
+            border_dimmest: slot(&roles.border_dimmest),
+        };
+    }
+    #[cfg(not(feature = "streaming"))]
+    {
+        TERMINAL
+    }
+}
+
+/// `color0`–`color15`, `foreground`, `background`, `terminal`, or `#rrggbb`.
+pub fn slot(name: &str) -> Rgb {
+    let name = name.trim().to_ascii_lowercase();
+    if let Some(hex) = name.strip_prefix('#') {
+        return Rgb::from_hex(hex);
+    }
+    if name == "foreground" || name == "fg" || name == "background" || name == "bg" || name == "terminal" {
+        return Rgb::terminal();
+    }
+    if let Some(index) = name.strip_prefix("color").or_else(|| name.strip_prefix("ansi")) {
+        if let Ok(n) = index.parse::<u8>() {
+            if n <= 15 {
+                return Rgb::ansi(n);
+            }
+        }
+    }
+    if let Ok(n) = name.parse::<u8>() {
+        if n <= 15 {
+            return Rgb::ansi(n);
+        }
+    }
+    Rgb::ansi(5)
 }
 

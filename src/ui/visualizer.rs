@@ -82,7 +82,20 @@ fn draw_bars(f: &mut Frame, theme: Theme, area: Rect, values: &[f32], mirror: bo
     }
 
     const LEVELS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-    let color: ratatui::style::Color = theme.text.into();
+    // Progress, volume, and cava share the accent role on the terminal theme.
+    let bar = if theme.name == "terminal" {
+        #[cfg(feature = "streaming")]
+        {
+            crate::theme::slot(&myx::config::get().colors.cava)
+        }
+        #[cfg(not(feature = "streaming"))]
+        {
+            theme.accent
+        }
+    } else {
+        theme.accent
+    };
+    let color: ratatui::style::Color = bar.into();
     let style = Style::default().fg(color);
 
     let mut lines: Vec<Line> = Vec::with_capacity(h);
